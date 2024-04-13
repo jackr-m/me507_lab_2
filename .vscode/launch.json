@@ -7,7 +7,7 @@
             "name": "probe-rs Launch",
             "cwd": "${workspaceFolder}",
             "connectUnderReset": true,
-            "chip": "STM32L476RGTx",
+            "chip": "STM32F411CEUx",
             "flashingConfig": {
                "flashingEnabled": true,
                "haltAfterReset": true
@@ -15,7 +15,7 @@
             "coreConfigs": [
                 {
                     "coreIndex": 0,
-                    "programBinary": "./target/thumbv7em-none-eabi/debug/${workspaceFolderBasename}"
+                    "programBinary": "./target/thumbv7em-none-eabihf/debug/${workspaceFolderBasename}"
                 }
             ]
         },
@@ -25,11 +25,11 @@
             "name": "probe-rs Attach",
             "cwd": "${workspaceFolder}",
             "connectUnderReset": true,
-            "chip": "STM32L476RGTx",
+            "chip": "STM32F411CEUx",
             "coreConfigs": [
                 {
                     "coreIndex": 0,
-                    "programBinary": "./target/thumbv7em-none-eabi/debug/${workspaceFolderBasename}"
+                    "programBinary": "./target/thumbv7em-none-eabihf/debug/${workspaceFolderBasename}"
                 }
             ]
         }
