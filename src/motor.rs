@@ -2,9 +2,18 @@
 
 // Path: src/motor.rs
 
-use embassy_stm32::gpio::{AnyPin, Pin};
-use embassy_stm32::timer::simple_pwm::SimplePwm;
+use embassy_stm32::gpio::{AnyPin, OutputType};
+use embassy_stm32::time::khz;
+use embassy_stm32::timer::simple_pwm::{PwmPin, SimplePwm};
 use embassy_stm32::timer::Channel;
+use embassy_stm32::timer;
+use embedded_hal::Pwm;
+
+
+pub trait PwmTrait: timer::CaptureCompare16bitInstance {}
+pub type PwmImpl<TimPeri> = SimplePwm<'static, TimPeri>;
+
+pub type PwmMotor = SimplePwm<'static, embassy_stm32::peripherals::TIM1>;
 
 /// Defines errors which can happen when calling [`Motor::drive()`].
 pub enum MotorError<IN1Error, IN2Error> {
@@ -29,38 +38,27 @@ pub enum DriveCommand {
 }
 
 /// Represents a single motor.
-pub struct Motor<IN1, IN2, PWM> {
-    in1: IN1,
-    in2: IN2,
-    pwm: PWM,
+pub struct Motor {
+    pwm: PwmMotor,
     current_drive_command: DriveCommand,
 }
 
-impl<IN1, IN2, PWM> Motor<IN1, IN2, PWM>
-where
-    IN1: Pin,
-    IN2: Pin,
-    PWM: SimplePwm,
-{
+impl Motor {
     /// Note: pins must correspond to channels of the same timer
-    pub fn new(in1: IN1, in2: IN2) -> Result<Motor<IN1, IN2>, MotorError<IN1, IN2>> {
+    pub fn new(in_1: AnyPin, in_2: AnyPin) -> Self {
+        let pwm_ch_1 = PwmPin::new_ch1(in_1, OutputType::PushPull);
+        let pwm_ch_2 = PwmPin::new_ch2(in_2, OutputType::PushPull);
+        let pwm_motor = SimplePwm::new(PwmTrait, pwm_ch_1, pwm_ch_2, None, None, khz(50), Default::default());
         let mut motor = Motor {
-            in1,
-            in2,
+            pwm: pwm_motor,
             current_drive_command: DriveCommand::Stop,
         };
-
-        motor.drive(motor.current_drive_command)?;
-
-        Ok(motor)
+        
+        motor.drive(motor.current_drive_command)
     }
     
     /// Drive with the defined speed (or brake or stop the motor).
-    #[allow(clippy::type_complexity)]
-    pub fn drive(
-        &mut self,
-        drive_command: DriveCommand,
-    ) -> Result<(), MotorError<IN1, IN2>> {
+    pub fn drive(&mut self, drive_command: DriveCommand, ) -> Result<()> {
         let speed = match drive_command {
             DriveCommand::Forward(s) | DriveCommand::Backward(s) => s,
             _ => 0,
@@ -72,29 +70,23 @@ where
 
         match drive_command {
             DriveCommand::Forward(_) => {
-                self.in1.set_high().map_err(MotorError::In1Error)?;
-                self.in2.set_low().map_err(MotorError::In2Error)?;
+                
             }
             DriveCommand::Backward(_) => {
-                self.in1.set_low().map_err(MotorError::In1Error)?;
-                self.in2.set_high().map_err(MotorError::In2Error)?;
+                
             }
             DriveCommand::Brake => {
-                self.in1.set_high().map_err(MotorError::In1Error)?;
-                self.in2.set_high().map_err(MotorError::In2Error)?;
+                
             }
             DriveCommand::Stop => {
-                self.in1.set_low().map_err(MotorError::In1Error)?;
-                self.in2.set_low().map_err(MotorError::In2Error)?;
+                
             }
         }
 
         #[cfg(feature = "defmt")]
         defmt::debug!("driving {} with speed {}", drive_command, speed);
 
-        self.pwm
-            .set_duty_cycle_percent(speed)
-            .map_err(MotorError::PwmError)?;
+        self.pwm.set_duty_cycle_percent(speed);
 
         self.current_drive_command = drive_command;
 
