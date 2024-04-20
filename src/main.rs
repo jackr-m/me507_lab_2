@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-mod motor;
+// mod motor;
 
 use defmt::*; // if info!() or other debug macros are used
 use embassy_executor::Spawner;
@@ -30,15 +30,17 @@ async fn main(spawner: Spawner) {
     let ch3 = PwmPin::new_ch3(p.PA10, OutputType::PushPull);
     let ch4 = PwmPin::new_ch4(p.PA11, OutputType::PushPull);
     let mut pwm = SimplePwm::new(p.TIM1, Some(ch1), Some(ch2), Some(ch3), Some(ch4), khz(50), Default::default());
-    
-    // let mut led = Output::new(p.PC13, Level::High, Speed::VeryHigh);
+
+    // let motor_a = motor::Motor::l298(ch1, p.PA1, p.PA2);
     
     // Variables
-    let max = pwm.get_max_duty(); // equates to 65416
+    // let max = pwm.get_max_duty(); // equates to 65416
     // let mut duty = (max as f32 * (200.0/(200.0+300.0))) as u16; // equates to 25806
     let mut duty: i16 = 5;
 
-    info!("Max Duty Cycle: {}", max);
+    // let mut motor_a = motor::Motor::tb67(ch1, ch2);
+    
+    // info!("Max Duty Cycle: {}", max);
 
     pwm.set_polarity(Channel::Ch1, OutputPolarity::ActiveLow); // inverted PWM
     pwm.set_polarity(Channel::Ch2, OutputPolarity::ActiveLow);
@@ -52,42 +54,6 @@ async fn main(spawner: Spawner) {
     info!("Starting Program...");
     spawner.spawn(blinky(p.PC13.degrade(), 10.0/(duty.unsigned_abs() as f32))).unwrap();
     
-    //loop {
-
-        // Clamp duty if it goes over 100 percent
-        if duty > 100 {
-            duty = 100;
-        } else if duty < -100 {
-            duty = -100;
-        }
-    
-        info!("Duty: {}", duty);
-    
-        if duty == 0 {
-            pwm.set_duty(Channel::Ch1, 0);
-            pwm.set_duty(Channel::Ch2, 0);
-            pwm.set_duty(Channel::Ch3, 0);
-            pwm.set_duty(Channel::Ch4, 0);
-        } else if duty <= 0 {
-            pwm.set_duty(Channel::Ch1, 0);
-            pwm.set_duty(Channel::Ch2, ((duty as i32).unsigned_abs()*(max as u32)/100) as u16);
-            pwm.set_duty(Channel::Ch3, 0);
-            pwm.set_duty(Channel::Ch4, ((duty as i32).unsigned_abs()*(max as u32)/100) as u16);
-        } else {
-            info!("Max Duty: {}", max);
-            info!("PWM Duty: {}", ((duty as i32).unsigned_abs()*(max as u32)/100) as u16);
-            pwm.set_duty(Channel::Ch1, ((duty as i32).unsigned_abs()*(max as u32)/100) as u16);
-            pwm.set_duty(Channel::Ch2, 0);
-            pwm.set_duty(Channel::Ch3, ((duty as i32).unsigned_abs()*(max as u32)/100) as u16);
-            pwm.set_duty(Channel::Ch4, 0);
-        }
-        
-        // duty = (max as f32 * (counter as f32 / 100.0)) as u16;
-        // pwm.set_duty(Channel::Ch1, duty);
-        // pwm.set_duty(Channel::Ch2, duty);
-        // Timer::after_millis(10).await;
-        
-    //}
 
     Timer::after_secs(10).await;
     pwm.disable(Channel::Ch1);
@@ -100,11 +66,40 @@ async fn main(spawner: Spawner) {
     loop {
         Timer::after_millis(10).await;
     }
-    
-    // pwm.disable(Channel::Ch1);
-    // pwm.disable(Channel::Ch2);
-    // pwm.disable(Channel::Ch3);
-    // pwm.disable(Channel::Ch4);
+}
+
+fn set_motor_duty(pwm: &mut SimplePwm<embassy_stm32::peripherals::TIM1>, duty: i16) {
+    let mut clamped_duty = 0_i32;
+    let max = pwm.get_max_duty() as u32;
+    // Clamp duty if it goes over 100 percent
+    if duty > 100 {
+        clamped_duty = 100;
+    } else if duty < -100 {
+        clamped_duty = -100;
+    } else {
+        clamped_duty = duty as i32;
+    }
+
+    info!("Duty: {}", duty);
+
+    if duty == 0 {
+        pwm.set_duty(Channel::Ch1, 0);
+        pwm.set_duty(Channel::Ch2, 0);
+        pwm.set_duty(Channel::Ch3, 0);
+        pwm.set_duty(Channel::Ch4, 0);
+    } else if duty <= 0 {
+        pwm.set_duty(Channel::Ch1, 0);
+        pwm.set_duty(Channel::Ch2, (clamped_duty.unsigned_abs()*max/100) as u16);
+        pwm.set_duty(Channel::Ch3, 0);
+        pwm.set_duty(Channel::Ch4, (clamped_duty.unsigned_abs()*max/100) as u16);
+    } else {
+        info!("Max Duty: {}", max);
+        info!("PWM Duty: {}", (clamped_duty.unsigned_abs()*max/100) as u16);
+        pwm.set_duty(Channel::Ch1, (clamped_duty.unsigned_abs()*max/100) as u16);
+        pwm.set_duty(Channel::Ch2, 0);
+        pwm.set_duty(Channel::Ch3, (clamped_duty.unsigned_abs()*max/100) as u16);
+        pwm.set_duty(Channel::Ch4, 0);
+    }
 }
 
 #[embassy_executor::task]

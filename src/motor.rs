@@ -1,118 +1,83 @@
-//! This module provides a simple interface for controlling a motor using a PWM signal for the Embassy STM32 framework.
+//! Crate to interface full H-bridge motor drivers
 
-// Path: src/motor.rs
+#![deny(missing_docs)]
+#![deny(warnings)]
 
-use embassy_stm32::gpio::{AnyPin, OutputType};
-use embassy_stm32::time::khz;
-use embassy_stm32::timer::simple_pwm::{PwmPin, SimplePwm};
-use embassy_stm32::timer::Channel;
-use embassy_stm32::timer;
-use embedded_hal::Pwm;
+extern crate embedded_hal;
 
+// pub mod ic;
 
-pub trait PwmTrait: timer::CaptureCompare16bitInstance {}
-pub type PwmImpl<TimPeri> = SimplePwm<'static, TimPeri>;
+// use core::marker::PhantomData;
 
-pub type PwmMotor = SimplePwm<'static, embassy_stm32::peripherals::TIM1>;
+// use embedded_hal::digital::v2::OutputPin;
+// use embedded_hal::{Pwm, PwmPin};
+// use embedded_hal::PwmPin;
+use embassy_stm32::timer::simple_pwm::{Ch1, PwmPin};
 
-/// Defines errors which can happen when calling [`Motor::drive()`].
-pub enum MotorError<IN1Error, IN2Error> {
-    /// An invalid speed has been defined. The speed must be given as a percentage value between 0 and 100 to be valid.
-    InvalidSpeed,
-    /// An error in setting the output of the IN1 pin
-    In1Error(IN1Error),
-    /// An error in setting the output of the IN2 pin
-    In2Error(IN2Error),
+/// A full H-bridge motor driver
+pub struct Motor<IN1, IN2>
+where
+    IN1: PwmPin,
+    IN2: PwmPin,
+{
+    in1: IN1,
+    in2: IN2,
 }
 
-/// Defines the possible drive commands.
-pub enum DriveCommand {
-    /// Drive forward with the defined speed (in percentage)
-    Forward(u8),
-    /// Drive backward with the defined speed (in percentage)
-    Backward(u8),
-    /// Actively brake
-    Brake,
-    /// Coast, i.e. stop but don't actively brake.
-    Stop,
-}
-
-/// Represents a single motor.
-pub struct Motor {
-    pwm: PwmMotor,
-    current_drive_command: DriveCommand,
-}
-
-impl Motor {
-    /// Note: pins must correspond to channels of the same timer
-    pub fn new(in_1: AnyPin, in_2: AnyPin) -> Self {
-        let pwm_ch_1 = PwmPin::new_ch1(in_1, OutputType::PushPull);
-        let pwm_ch_2 = PwmPin::new_ch2(in_2, OutputType::PushPull);
-        let pwm_motor = SimplePwm::new(PwmTrait, pwm_ch_1, pwm_ch_2, None, None, khz(50), Default::default());
-        let mut motor = Motor {
-            pwm: pwm_motor,
-            current_drive_command: DriveCommand::Stop,
-        };
-        
-        motor.drive(motor.current_drive_command)
+impl<IN1, IN2> Motor<IN1, IN2>
+where
+    IN1: PwmPin,
+    IN2: PwmPin,
+{
+    /// Brakes the motor
+    pub fn brake(&mut self) -> &mut Self {
+        // self.in1.set_high().expect_err("Error setting pin high");
+        // self.in2.set_high().expect_err("Error setting pin high");
+        self.in1.disable();
+        self.in2.disable();
+        self
     }
-    
-    /// Drive with the defined speed (or brake or stop the motor).
-    pub fn drive(&mut self, drive_command: DriveCommand, ) -> Result<()> {
-        let speed = match drive_command {
-            DriveCommand::Forward(s) | DriveCommand::Backward(s) => s,
-            _ => 0,
-        };
 
-        if speed > 100 {
-            return Err(MotorError::InvalidSpeed);
+    /// Makes the motor spin in CounterClockWise direction
+    pub fn ccw(&mut self) -> &mut Self {
+        self.in1.disable();
+        self.in2.disable();
+        self
+    }
+
+    /// Makes the motor spin in ClockWise direction
+    pub fn cw(&mut self) -> &mut Self {
+        self.in1.disable();
+        self.in2.disable();
+        self
+    }
+
+    /// Returns the maximum
+    pub fn get_max_duty(&mut self) -> IN1::Duty {
+        self.in1.get_max_duty()
+    }
+
+    /// Changes the motor speed
+    pub fn duty(&mut self, duty: IN1::Duty) -> &mut Self {
+        self.in1.set_duty(duty);
+        self
+    }
+}
+
+impl<IN1, IN2> Motor<IN1, IN2>
+where
+    IN1: PwmPin,
+    IN2: PwmPin,
+{
+    /// Creates a new `Motor`
+    pub fn tb67(mut in1: IN1, mut in2: IN2) -> Self {
+        // initial state: brake
+        in1.disable();
+        in2.disable();
+
+        Motor {
+            in1,
+            in2,
         }
-
-        match drive_command {
-            DriveCommand::Forward(_) => {
-                
-            }
-            DriveCommand::Backward(_) => {
-                
-            }
-            DriveCommand::Brake => {
-                
-            }
-            DriveCommand::Stop => {
-                
-            }
-        }
-
-        #[cfg(feature = "defmt")]
-        defmt::debug!("driving {} with speed {}", drive_command, speed);
-
-        self.pwm.set_duty_cycle_percent(speed);
-
-        self.current_drive_command = drive_command;
-
-        Ok(())
     }
 }
-
-/*pub fn motor_control(pwm: &mut SimplePwm<T>, mut duty: i16) {
-    let max = pwm.get_max_duty();
-    // let duty = duty as u16;
-    
-    // Clamp duty if it goes over 100 percent
-    if duty > 100 {
-        duty = 100;
-    } else if duty < -100 {
-        duty = -100;
-    }
-    
-    if duty == 0 {
-        pwm.set_duty(Channel::Ch1, 0);
-        pwm.set_duty(Channel::Ch2, 0);
-    } else if duty <= 0 {
-        pwm.set_duty(Channel::Ch1, 0);
-        pwm.set_duty(Channel::Ch2, ((duty.abs() as u16)/100)*max);
-    } else {
-        pwm.set_duty(Channel::Ch1, ((duty as u16)/100)*max);
-        pwm.set_duty(Channel::Ch2, 0);
-    }
-}*/
