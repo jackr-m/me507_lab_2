@@ -53,7 +53,7 @@ async fn main(spawner: Spawner) {
     
     info!("Starting Program...");
     spawner.spawn(blinky(p.PC13.degrade(), 10.0/(duty.unsigned_abs() as f32))).unwrap();
-    
+    set_motor_duty(&mut pwm, duty);
 
     Timer::after_secs(10).await;
     pwm.disable(Channel::Ch1);
@@ -69,17 +69,9 @@ async fn main(spawner: Spawner) {
 }
 
 fn set_motor_duty(pwm: &mut SimplePwm<embassy_stm32::peripherals::TIM1>, duty: i16) {
-    let mut clamped_duty = 0_i32;
+    let clamped_duty = duty.clamp(-100, 100) as i32;
     let max = pwm.get_max_duty() as u32;
-    // Clamp duty if it goes over 100 percent
-    if duty > 100 {
-        clamped_duty = 100;
-    } else if duty < -100 {
-        clamped_duty = -100;
-    } else {
-        clamped_duty = duty as i32;
-    }
-
+    
     info!("Duty: {}", duty);
 
     if duty == 0 {
