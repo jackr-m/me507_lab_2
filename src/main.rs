@@ -120,7 +120,7 @@ async fn main(spawner: Spawner) {
                 let command = core::str::from_utf8(&msg).unwrap();
                 if re.is_match(command) {
                     let motor = command.chars().nth(1).unwrap();
-                    let duty = i16::from_str_radix(&command[2..], 16).unwrap(); // TODO: this only works forward
+                    let duty = (u8::from_str_radix(&command[2..], 16).unwrap() as i8) as i16;
                     if motor == '1' {
                         set_motor_duty(&mut pwm_a, 'a', duty);
                     } else if motor == '2' {
@@ -158,7 +158,7 @@ async fn main(spawner: Spawner) {
 
 #[embassy_executor::task]
 async fn blinky(p: AnyPin) {
-    let mut led = Output::new(p, Level::Low, Speed::Medium);
+    let mut led = Output::new(p, Level::Low, Speed::Low);
 
     // let mut counter: usize = 0;
     
