@@ -120,7 +120,7 @@ async fn main(spawner: Spawner) {
                 let command = core::str::from_utf8(&msg).unwrap();
                 if re.is_match(command) {
                     let motor = command.chars().nth(1).unwrap();
-                    let duty = (u8::from_str_radix(&command[2..], 16).unwrap() as i8) as i16;
+                    let duty = ((u8::from_str_radix(&command[2..], 16).unwrap() as i8) as i16)*100/128;
                     if motor == '1' {
                         set_motor_duty(&mut pwm_a, 'a', duty);
                     } else if motor == '2' {
@@ -134,6 +134,7 @@ async fn main(spawner: Spawner) {
                 } else {
                     core::writeln!(&mut s, "Invalid Command\r").unwrap();
                     unwrap!(usart.write(s.as_bytes()).await);
+                    unwrap!(usart.write("\r\n".as_ref()).await);
                     s.clear();
                     msg = [0; 4]; // Clear the current input
                     index = 0;
@@ -142,10 +143,11 @@ async fn main(spawner: Spawner) {
         } else {
             msg[index] = current_char[0];
             index += 1;
+            unwrap!(usart.write("\r\n".as_ref()).await);
+            unwrap!(usart.write(&backspace).await);
+            unwrap!(usart.write(&msg).await);
         }
-        unwrap!(usart.write("\r".as_ref()).await);
-        unwrap!(usart.write(&backspace).await);
-        unwrap!(usart.write(&msg).await);
+        
     }
 
     // let mut msg: [u8; 1] = [0; 1];
