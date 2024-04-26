@@ -104,11 +104,11 @@ async fn main(spawner: Spawner) {
     
     let re = Regex::new(r"M[1|2][0-9a-fA-f]{2}").unwrap();
     
-    let backspace = [8u8];
+    // const BACKSPACE: [u8; 1] = [8u8];
+    // const DELETE: [u8; 1] = [127u8];
     let mut current_char: [u8; 1] = [0; 1];
     let mut msg: [u8; 4] = [0; 4];
     let mut index = 0usize;
-    unwrap!(usart.write("\r\n".as_ref()).await);
     loop {
         unwrap!(usart.read(&mut current_char).await);
         if index > 2 {
@@ -126,28 +126,44 @@ async fn main(spawner: Spawner) {
                     } else if motor == '2' {
                         set_motor_duty(&mut pwm_b, 'b', duty);
                     }
+                    unwrap!(usart.write("\r\n".as_ref()).await);
                     core::writeln!(&mut s, "Motor {} set to {}%\r", motor, duty).unwrap();
                     unwrap!(usart.write(s.as_bytes()).await);
                     s.clear();
                     msg = [0; 4];
                     index = 0;
                 } else {
+                    unwrap!(usart.write("\r\n".as_ref()).await);
                     core::writeln!(&mut s, "Invalid Command\r").unwrap();
                     unwrap!(usart.write(s.as_bytes()).await);
-                    unwrap!(usart.write("\r\n".as_ref()).await);
                     s.clear();
                     msg = [0; 4]; // Clear the current input
                     index = 0;
                 }
             }
+        } else if (current_char[0] == 8) | (current_char[0] == 127) {
+            // backspace
+            if index > 0 {
+                for n in index..msg.len() {
+                    msg[n] = 0;
+                }
+                // msg[index] = 0;
+                info!("Index: {}", index);
+                if index < 4 {
+                    index -= 1;
+                }
+                unwrap!(usart.write("\r    \r".as_ref()).await);
+                unwrap!(usart.write(&msg).await);
+            }
         } else {
             msg[index] = current_char[0];
+            // info!("Current char: {}", current_char[0]);
             index += 1;
-            unwrap!(usart.write("\r\n".as_ref()).await);
-            unwrap!(usart.write(&backspace).await);
+            unwrap!(usart.write("\r".as_ref()).await);
+            // unwrap!(usart.write(&backspace).await);
             unwrap!(usart.write(&msg).await);
         }
-        
+
     }
 
     // let mut msg: [u8; 1] = [0; 1];
